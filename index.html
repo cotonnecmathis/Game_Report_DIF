@@ -93,7 +93,7 @@
   .tab-btn.active::after { transform: scaleX(1); }
 
   /* ─── CONTENT ─────────────────────────────────────── */
-  .tab-panel { display: none; padding: 32px 40px; max-width: 1400px; }
+  .tab-panel { display: none; padding: 32px 40px; }
   .tab-panel.active { display: block; }
 
   /* ─── CARDS ─────────────────────────────────────── */
@@ -151,15 +151,15 @@
   .lb-val { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--accent-light); width: 65px; text-align: right; }
 
   /* ─── PLAYER TABLE ─────────────────────────────────────── */
-  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
   .data-table th {
-    text-align: left; padding: 10px 14px;
-    font-size: 10px; text-transform: uppercase; letter-spacing: 0.9px;
+    text-align: left; padding: 8px 10px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px;
     color: var(--muted); border-bottom: 1px solid var(--border);
     cursor: pointer; user-select: none; white-space: nowrap;
   }
   .data-table th:hover { color: var(--accent); }
-  .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .data-table tr:last-child td { border-bottom: none; }
   .data-table tr:hover td { background: rgba(0,229,255,0.03); }
   .pos-badge {
@@ -775,6 +775,25 @@
       <span>Total weights</span>
       <span class="score-total-val ok" id="score-total">100%</span>
     </div>
+
+    <!-- Live best player preview -->
+    <div id="score-best-player" style="
+      margin-top:18px; padding:14px 18px;
+      background:linear-gradient(135deg,rgba(200,164,0,0.08),rgba(30,111,200,0.06));
+      border:1px solid rgba(200,164,0,0.25); border-radius:10px;
+      display:flex; align-items:center; gap:14px;
+    ">
+      <div style="font-size:26px;line-height:1">🏆</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:3px">Best player with these weights</div>
+        <div id="score-best-name" style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:0.5px;color:var(--accent2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div id="score-best-val" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--accent2);line-height:1">—</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">perf. score</div>
+      </div>
+    </div>
+
     <button class="score-apply-btn" id="score-apply-btn" onclick="applyScoreConfig()">Recalculate scores →</button>
   </div>
 </div>
@@ -1688,13 +1707,12 @@ function switchTab(name) {
 let SCORE_WEIGHTS = { mpm: 0.4, accel: 0.3, dist: 0.3, load: 0.0, hsr: 0.0 };
 
 function openScoreModal() {
-  // Sync sliders with current weights
   document.getElementById('sw-mpm').value   = Math.round(SCORE_WEIGHTS.mpm   * 100);
   document.getElementById('sw-accel').value = Math.round(SCORE_WEIGHTS.accel * 100);
   document.getElementById('sw-dist').value  = Math.round(SCORE_WEIGHTS.dist  * 100);
   document.getElementById('sw-load').value  = Math.round(SCORE_WEIGHTS.load  * 100);
   document.getElementById('sw-hsr').value   = Math.round(SCORE_WEIGHTS.hsr   * 100);
-  updateScoreSliders();
+  updateScoreSliders(); // also refreshes best player preview
   document.getElementById('score-modal').classList.add('open');
 }
 
@@ -1720,6 +1738,30 @@ function updateScoreSliders() {
   totalEl.textContent = total + '%';
   totalEl.className = 'score-total-val ' + (total === 100 ? 'ok' : 'bad');
   document.getElementById('score-apply-btn').disabled = total !== 100;
+
+  // Live best player preview
+  if (P.length && total === 100) {
+    const w = { mpm: vals.mpm/100, accel: vals.accel/100, dist: vals.dist/100, load: vals.load/100, hsr: vals.hsr/100 };
+    const maxMpm   = Math.max(...P.map(p=>p.mpm))        || 1;
+    const maxAccel = Math.max(...P.map(p=>p.accelHigh))  || 1;
+    const maxDist  = Math.max(...P.map(p=>p.distance))   || 1;
+    const maxLoad  = Math.max(...P.map(p=>p.playerLoad)) || 1;
+    const maxHsr   = Math.max(...P.map(p=>p.hsrDist||0)) || 1;
+    let best = null, bestScore = -1;
+    P.forEach(p => {
+      const s = p.mpm/maxMpm*w.mpm + p.accelHigh/maxAccel*w.accel +
+                p.distance/maxDist*w.dist + p.playerLoad/maxLoad*w.load +
+                (p.hsrDist||0)/maxHsr*w.hsr;
+      if (s > bestScore) { bestScore = s; best = p; }
+    });
+    if (best) {
+      document.getElementById('score-best-name').textContent = best.name;
+      document.getElementById('score-best-val').textContent  = (bestScore * 100).toFixed(1) + '%';
+    }
+  } else {
+    document.getElementById('score-best-name').textContent = total === 100 ? '—' : '—';
+    document.getElementById('score-best-val').textContent  = '—';
+  }
 }
 
 function recomputeScores() {
